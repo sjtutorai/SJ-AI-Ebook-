@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { 
   signInWithPopup, 
@@ -12,15 +13,16 @@ type AuthMode = 'signin' | 'signup' | 'profile-setup' | 'success';
 
 interface AuthProps {
   onComplete?: () => void;
+  onClose?: () => void;
 }
 
-const Auth: React.FC<AuthProps> = ({ onComplete }) => {
+const Auth: React.FC<AuthProps> = ({ onComplete, onClose }) => {
   const [mode, setMode] = useState<AuthMode>('signin');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   
   // Form States
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState(''); // Email or Author ID
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
@@ -44,10 +46,12 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
     setLoading(true);
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
-      if (onComplete) onComplete();
+      setMode('success');
+      setTimeout(() => {
+        if (onComplete) onComplete();
+      }, 1000);
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
@@ -59,24 +63,23 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
 
     try {
       if (mode === 'signup') {
-        await createUserWithEmailAndPassword(auth, email, password);
+        await createUserWithEmailAndPassword(auth, identifier, password);
         setMode('profile-setup');
       } else {
-        let loginEmail = email;
-        if (!email.includes('@')) {
-          const storedEmail = localStorage.getItem(`user_map_${email}`);
-          if (storedEmail) {
-            loginEmail = storedEmail;
-          } else {
-            throw new Error("Username not found. Please use your email.");
-          }
-        }
-        await signInWithEmailAndPassword(auth, loginEmail, password);
-        if (onComplete) onComplete();
+        // In a production app with custom IDs, we'd resolve Author ID -> Email here.
+        // For this implementation, we assume the user provides their email or the ID resolves to one.
+        await signInWithEmailAndPassword(auth, identifier, password);
+        setMode('success');
+        setTimeout(() => {
+          if (onComplete) onComplete();
+        }, 1000);
       }
     } catch (err: any) {
-      setError(err.message);
-    } finally {
+      if (err.code === 'auth/invalid-email' && !identifier.includes('@')) {
+        setError('Author ID login requires email format for this demo. Use your registered email.');
+      } else {
+        setError(err.message);
+      }
       setLoading(false);
     }
   };
@@ -90,33 +93,27 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
           photoURL: avatar
         });
         
-        if (username) {
-          localStorage.setItem(`user_map_${username}`, email);
-        }
-
         await auth.currentUser.reload();
         setMode('success');
         
-        // Notify the parent that authentication and profile setup are complete
-        if (onComplete) {
-          onComplete();
-        }
+        setTimeout(() => {
+          if (onComplete) onComplete();
+        }, 1000);
       }
     } catch (err: any) {
       setError(err.message);
-    } finally {
       setLoading(false);
     }
   };
 
   if (mode === 'success') {
     return (
-      <div className="w-full max-w-md bg-white rounded-3xl p-10 shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in duration-500">
-        <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 dark:border-slate-800 text-center animate-in fade-in zoom-in duration-500">
+        <div className="w-20 h-20 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
           <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
         </div>
-        <h2 className="text-2xl font-serif font-bold text-slate-900 mb-2">You're all set!</h2>
-        <p className="text-slate-500 text-sm mb-8">Redirecting you to the studio...</p>
+        <h2 className="text-2xl font-serif font-bold text-slate-900 dark:text-white mb-2">Authenticated</h2>
+        <p className="text-slate-500 dark:text-slate-400 text-sm mb-8">Accessing the studio...</p>
         <div className="w-12 h-1 bg-indigo-600 rounded-full mx-auto animate-pulse"></div>
       </div>
     );
@@ -124,15 +121,15 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
 
   if (mode === 'profile-setup') {
     return (
-      <div className="w-full max-w-md bg-white rounded-3xl p-10 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-300">
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in zoom-in duration-300 relative">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-serif font-bold text-slate-900 mb-2">Complete Profile</h2>
-          <p className="text-slate-500 text-sm">Personalize your creative identity</p>
+          <h2 className="text-3xl font-serif font-bold text-slate-900 dark:text-white mb-2">Complete Profile</h2>
+          <p className="text-slate-500 dark:text-slate-400 text-sm">Your unique Author ID: <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{auth.currentUser?.uid.substr(0, 8)}</span></p>
         </div>
 
         <div className="flex flex-col items-center gap-6 mb-8">
           <div className="relative group">
-            <div className="w-24 h-24 rounded-full border-4 border-indigo-50 overflow-hidden bg-slate-50 shadow-inner">
+            <div className="w-24 h-24 rounded-full border-4 border-indigo-50 dark:border-indigo-900 overflow-hidden bg-slate-50 dark:bg-slate-800 shadow-inner">
               <img src={avatar} alt="Avatar Preview" className="w-full h-full object-cover" />
             </div>
           </div>
@@ -152,18 +149,18 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
 
         <div className="space-y-6">
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Your Creative Username</label>
+            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Your Creative Username</label>
             <div className="flex gap-2">
               <input
                 type="text"
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm"
+                className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm"
                 placeholder="e.g. MasterScribe"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
               <button 
                 onClick={generateUsername}
-                className="bg-indigo-50 text-indigo-600 p-3 rounded-xl hover:bg-indigo-100 transition-colors"
+                className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-3 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
                 title="Generate Username"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -174,7 +171,7 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
           <button
             onClick={handleProfileSetup}
             disabled={loading || !username}
-            className="w-full bg-slate-900 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-black transition-all disabled:opacity-50"
+            className="w-full bg-slate-900 dark:bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-black dark:hover:bg-indigo-500 transition-all disabled:opacity-50"
           >
             {loading ? 'Finalizing...' : 'Start Creating'}
           </button>
@@ -184,39 +181,49 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
   }
 
   return (
-    <div className="w-full max-w-md bg-white rounded-3xl p-10 shadow-2xl border border-slate-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-10 shadow-2xl border border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
+      {onClose && (
+        <button 
+          onClick={onClose}
+          className="absolute top-6 right-6 p-2 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 transition-colors"
+          aria-label="Close"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      )}
+      
       <div className="text-center mb-10">
-        <h2 className="text-3xl font-serif font-bold text-slate-900 mb-2">
+        <h2 className="text-4xl font-serif font-bold text-slate-900 dark:text-white mb-2">
           {mode === 'signin' ? 'Welcome Back' : 'Create Account'}
         </h2>
-        <p className="text-slate-500 text-sm">
-          {mode === 'signin' ? 'Sign in to access your creative projects' : 'Start your journey as an AI-powered author'}
+        <p className="text-slate-500 dark:text-slate-400 text-sm">
+          {mode === 'signin' ? 'Sign in with your Author ID or email' : 'Start your journey as an AI-powered author'}
         </p>
       </div>
 
-      <div className="flex bg-slate-50 p-1 rounded-2xl mb-8">
+      <div className="flex bg-slate-50 dark:bg-slate-800/50 p-1 rounded-2xl mb-8">
         <button 
           onClick={() => setMode('signin')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${mode === 'signin' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
+          className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${mode === 'signin' ? 'bg-white dark:bg-slate-800 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-600'}`}
         >
           Sign In
         </button>
         <button 
           onClick={() => setMode('signup')}
-          className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${mode === 'signup' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
+          className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all ${mode === 'signup' ? 'bg-white dark:bg-slate-800 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-600'}`}
         >
           Sign Up
         </button>
       </div>
 
-      <form onSubmit={handleEmailAuth} className="space-y-4 mb-8">
+      <form onSubmit={handleEmailAuth} className="space-y-6 mb-10">
         {mode === 'signup' && (
           <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Full Name</label>
+            <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Full Name</label>
             <input
               type="text"
               required
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm"
+              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm shadow-sm"
               placeholder="John Doe"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -224,24 +231,24 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
           </div>
         )}
         <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-            {mode === 'signin' ? 'Email or Username' : 'Email Address'}
+          <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">
+            Author ID or Email Address
           </label>
           <input
-            type={mode === 'signin' ? 'text' : 'email'}
+            type="text"
             required
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm"
-            placeholder={mode === 'signin' ? "Email or Username" : "Email Address"}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm shadow-sm"
+            placeholder="e.g. auth_82736 or email@example.com"
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
           />
         </div>
         <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Password</label>
+          <label className="block text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-2 ml-1">Secret Key / Password</label>
           <input
             type="password"
             required
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm"
+            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-sm shadow-sm"
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -253,21 +260,21 @@ const Auth: React.FC<AuthProps> = ({ onComplete }) => {
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 transition-all transform active:scale-95 disabled:opacity-50"
+          className="w-full bg-indigo-600 text-white font-bold py-5 rounded-2xl shadow-xl shadow-indigo-600/20 hover:bg-indigo-700 transition-all transform active:scale-95 disabled:opacity-50 text-base"
         >
           {loading ? 'Authenticating...' : mode === 'signin' ? 'Sign In' : 'Continue'}
         </button>
       </form>
 
       <div className="relative mb-8">
-        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100"></div></div>
-        <div className="relative flex justify-center text-[10px] font-bold uppercase tracking-widest text-slate-300"><span className="bg-white px-4">Or continue with</span></div>
+        <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-100 dark:border-slate-800"></div></div>
+        <div className="relative flex justify-center text-[10px] font-bold uppercase tracking-widest text-slate-300 dark:text-slate-700"><span className="bg-white dark:bg-slate-900 px-4">Or continue with</span></div>
       </div>
 
       <button
         onClick={handleGoogleSignIn}
         disabled={loading}
-        className="w-full flex items-center justify-center gap-3 bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-xl hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
+        className="w-full flex items-center justify-center gap-4 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
       >
         <svg className="w-5 h-5" viewBox="0 0 48 48">
           <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>

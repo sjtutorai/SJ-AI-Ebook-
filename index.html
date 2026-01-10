@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,16 +6,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SJ AI Ebook Generation</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              accent: 'var(--accent-color)',
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Playfair Display', 'serif'],
+            }
+          }
+        }
+      }
+    </script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Lora:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --accent-color: #4f46e5;
+        }
         body {
             font-family: 'Inter', sans-serif;
             background-color: #ffffff;
             color: #1e293b;
             margin: 0;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
-        .font-serif {
-            font-family: 'Playfair+Display', serif;
+        .dark body {
+            background-color: #020617;
+            color: #f8fafc;
         }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
@@ -23,9 +45,15 @@
         ::-webkit-scrollbar-track {
             background: #f8fafc;
         }
+        .dark ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
         ::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #334155;
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
@@ -35,6 +63,11 @@
             backdrop-filter: blur(12px);
             border: 1px solid rgba(0, 0, 0, 0.08);
             box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.05);
+        }
+        .dark .glass-panel {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 4px 24px -2px rgba(0, 0, 0, 0.4);
         }
         [contenteditable]:empty:before {
             content: attr(placeholder);
