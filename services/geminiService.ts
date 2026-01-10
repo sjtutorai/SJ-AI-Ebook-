@@ -2,12 +2,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { EbookConfig, Chapter } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 /**
  * Generates an educational eBook outline using chapter templates.
  */
 export const generateOutline = async (config: EbookConfig): Promise<Chapter[]> => {
+  // Instantiate GoogleGenAI right before making an API call to ensure it uses the most up-to-date API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `You are an expert eBook writer and educator.
 Generate a complete, well-structured eBook outline for students.
 
@@ -35,16 +35,26 @@ Provide final outline only in JSON format.`;
           items: {
             type: Type.OBJECT,
             properties: {
-              title: { type: Type.STRING },
-              summary: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ['introduction', 'standard', 'case-study', 'tutorial', 'summary', 'key-takeaways'] }
+              title: { 
+                type: Type.STRING,
+                description: 'The title of the chapter.'
+              },
+              summary: { 
+                type: Type.STRING,
+                description: 'A brief summary of what the chapter covers.'
+              },
+              type: { 
+                type: Type.STRING,
+                description: 'The template type for the chapter: introduction, standard, case-study, tutorial, summary, or key-takeaways.'
+              }
             },
-            required: ['title', 'summary', 'type']
+            propertyOrdering: ['title', 'summary', 'type']
           }
         }
       }
     });
 
+    // Access .text property directly as per SDK guidelines
     const rawJson = JSON.parse(response.text || '[]');
     return rawJson.map((item: any, index: number) => ({
       id: `ch-${index}-${Date.now()}`,
@@ -68,6 +78,8 @@ export const generateChapterContent = async (
   chapter: Chapter, 
   fullOutline: Chapter[]
 ): Promise<string> => {
+  // Instantiate GoogleGenAI right before making an API call to ensure it uses the most up-to-date API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `You are an expert eBook writer. Generate the content for this specific chapter.
 
 Book Topic: ${config.title}
@@ -92,6 +104,7 @@ Formatting: Use HTML tags like <h3>, <h4>, <ul>, <li>, and <p>. DO NOT include a
       model: 'gemini-3-pro-preview',
       contents: prompt,
     });
+    // Access .text property directly as per SDK guidelines
     return response.text || "Content generation failed.";
   } catch (error) {
     console.error("Chapter content generation error:", error);
@@ -113,20 +126,28 @@ Artistic Style: ${style}.
 Color Palette: ${colors}.
 Composition: Evocative, educational, and clean. NO TEXT on the image. Focus on symbolic imagery.`;
 
+  // Instantiate GoogleGenAI right before making an API call to ensure it uses the most up-to-date API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: { parts: [{ text: prompt }] },
       config: {
         imageConfig: {
-          aspectRatio: coverStyle.aspectRatio || "3:4"
+          aspectRatio: coverStyle.aspectRatio || "1:1"
         }
       }
     });
 
-    const part = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
-    if (part?.inlineData) {
-      return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+    // Iterate through all parts to find the image part as per SDK guidelines.
+    const candidates = response.candidates;
+    if (candidates && candidates.length > 0) {
+      for (const part of candidates[0].content.parts) {
+        if (part.inlineData) {
+          const base64EncodeString: string = part.inlineData.data;
+          return `data:${part.inlineData.mimeType};base64,${base64EncodeString}`;
+        }
+      }
     }
     throw new Error("No image generated");
   } catch (error) {
@@ -135,7 +156,12 @@ Composition: Evocative, educational, and clean. NO TEXT on the image. Focus on s
   }
 };
 
+/**
+ * Generates a professional blurb for the eBook.
+ */
 export const generateBlurb = async (config: EbookConfig, outline: Chapter[]): Promise<string> => {
+  // Instantiate GoogleGenAI right before making an API call to ensure it uses the most up-to-date API key.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Write a professional blurb for an eBook titled "${config.title}". 
 Target Audience: ${config.classLevel}.
 Key Modules: ${outline.map(c => c.title).join(', ')}.
@@ -146,6 +172,7 @@ Tone: Encouraging and educational.`;
       model: 'gemini-3-flash-preview',
       contents: prompt,
     });
+    // Access .text property directly as per SDK guidelines
     return response.text || "Blurb generation failed.";
   } catch (error) {
     console.error("Blurb generation failed:", error);
