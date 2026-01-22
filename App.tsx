@@ -73,10 +73,7 @@ const App: React.FC = () => {
     return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
   });
 
-  const [projects, setProjects] = useState<EbookProject[]>(() => {
-    const saved = localStorage.getItem(PROJECTS_KEY);
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [projects, setProjects] = useState<EbookProject[]>([]);
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const activeProject = projects.find(p => p.id === activeProjectId) || null;
@@ -90,7 +87,7 @@ const App: React.FC = () => {
       if (currentUser) {
         setSyncing(true);
         try {
-          // Fetch from Firestore
+          // 1. Fetch from Firestore
           const q = query(collection(db, "projects"), where("userId", "==", currentUser.uid));
           const querySnapshot = await getDocs(q);
           const cloudProjects: EbookProject[] = [];
@@ -98,18 +95,21 @@ const App: React.FC = () => {
             cloudProjects.push(doc.data() as EbookProject);
           });
 
-          // Merge Strategy: Prefer cloud, but if local has newer items (not yet synced), merge them
-          setProjects(prevLocal => {
-            const merged = [...cloudProjects];
-            prevLocal.forEach(local => {
-              if (!merged.find(m => m.id === local.id)) {
-                merged.push(local);
-                // Upload local-only project to cloud
-                setDoc(doc(db, "projects", local.id), { ...local, userId: currentUser.uid });
-              }
-            });
-            return merged.sort((a, b) => b.updatedAt - a.updatedAt);
+          // 2. Fetch from LocalStorage for initial merge
+          const savedLocal = localStorage.getItem(PROJECTS_KEY);
+          const localProjects: EbookProject[] = savedLocal ? JSON.parse(savedLocal) : [];
+
+          // 3. Merge Strategy: Prefer cloud projects as the source of truth
+          const merged = [...cloudProjects];
+          localProjects.forEach(local => {
+            if (!merged.find(m => m.id === local.id)) {
+              merged.push(local);
+              // Save local-only project to cloud for this user
+              setDoc(doc(db, "projects", local.id), { ...local, userId: currentUser.uid });
+            }
           });
+          
+          setProjects(merged.sort((a, b) => b.updatedAt - a.updatedAt));
         } catch (error) {
           console.error("Cloud sync error:", error);
         } finally {
@@ -121,15 +121,21 @@ const App: React.FC = () => {
           setPendingConfig(null);
           setShowAuthOverlay(false);
         }
+      } else {
+        // LOGOUT: Clear projects from state and local storage to prevent leakage
+        setProjects([]);
+        localStorage.removeItem(PROJECTS_KEY);
       }
     });
     return () => unsubscribe();
   }, [pendingConfig]);
 
-  // Persist to LocalStorage
+  // Persist to LocalStorage whenever projects change
   useEffect(() => {
-    localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-  }, [projects]);
+    if (user && projects.length > 0) {
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+    }
+  }, [projects, user]);
 
   // Appearance Application
   useEffect(() => {
@@ -139,13 +145,11 @@ const App: React.FC = () => {
 
   const applyAppearance = (s: StudioSettings) => {
     const root = document.documentElement;
-    const body = document.body;
     if (s.appearance.theme === 'dark' || (s.appearance.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
-    body.style.fontFamily = s.appearance.fontStyle === 'readable' ? "'Playfair Display', serif" : "'Inter', sans-serif";
     const colors = { indigo: '#4f46e5', emerald: '#10b981', rose: '#f43f5e', amber: '#f59e0b', slate: '#475569' };
     root.style.setProperty('--accent-color', colors[s.appearance.accentColor]);
   };
@@ -212,8 +216,7 @@ const App: React.FC = () => {
       history: []
     };
     
-    const updatedProjects = [newProject, ...projects];
-    setProjects(updatedProjects);
+    setProjects(prev => [newProject, ...prev]);
     
     if (user) {
       setDoc(doc(db, "projects", newId), { ...newProject, userId: user.uid });
