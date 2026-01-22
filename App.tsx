@@ -5,7 +5,7 @@ import { collection, query, where, getDocs, doc, setDoc, deleteDoc } from 'fireb
 import { auth, db } from './services/firebase';
 import { 
   EbookConfig, EbookProject, Step, Chapter, ViewState, 
-  ProjectSnapshot, StudioSettings
+  StudioSettings
 } from './types';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
@@ -62,7 +62,7 @@ const App: React.FC = () => {
   const [authLoading, setAuthLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 1024);
   const [currentStep, setCurrentStep] = useState<Step>('setup');
   const [isLoading, setIsLoading] = useState(false);
   const [showAuthOverlay, setShowAuthOverlay] = useState(false);
@@ -87,7 +87,6 @@ const App: React.FC = () => {
       if (currentUser) {
         setSyncing(true);
         try {
-          // 1. Fetch from Firestore
           const q = query(collection(db, "projects"), where("userId", "==", currentUser.uid));
           const querySnapshot = await getDocs(q);
           const cloudProjects: EbookProject[] = [];
@@ -95,16 +94,13 @@ const App: React.FC = () => {
             cloudProjects.push(doc.data() as EbookProject);
           });
 
-          // 2. Fetch from LocalStorage for initial merge
           const savedLocal = localStorage.getItem(PROJECTS_KEY);
           const localProjects: EbookProject[] = savedLocal ? JSON.parse(savedLocal) : [];
 
-          // 3. Merge Strategy: Prefer cloud projects as the source of truth
           const merged = [...cloudProjects];
           localProjects.forEach(local => {
             if (!merged.find(m => m.id === local.id)) {
               merged.push(local);
-              // Save local-only project to cloud for this user
               setDoc(doc(db, "projects", local.id), { ...local, userId: currentUser.uid });
             }
           });
@@ -122,7 +118,6 @@ const App: React.FC = () => {
           setShowAuthOverlay(false);
         }
       } else {
-        // LOGOUT: Clear projects from state and local storage to prevent leakage
         setProjects([]);
         localStorage.removeItem(PROJECTS_KEY);
       }
@@ -130,14 +125,12 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, [pendingConfig]);
 
-  // Persist to LocalStorage whenever projects change
   useEffect(() => {
     if (user && projects.length > 0) {
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
     }
   }, [projects, user]);
 
-  // Appearance Application
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     applyAppearance(settings);
@@ -160,7 +153,6 @@ const App: React.FC = () => {
     const updatedProjects = projects.map(p => {
       if (p.id === activeProjectId) {
         const updated = { ...p, ...updates, updatedAt: Date.now() };
-        // Sync to cloud if logged in
         if (user) {
           setDoc(doc(db, "projects", p.id), { ...updated, userId: user.uid }, { merge: true });
         }
@@ -239,8 +231,11 @@ const App: React.FC = () => {
       const outline = await generateOutline(config);
       updateActiveProject({ outline });
       setCurrentStep('outline');
-    } catch (error) {
-      if (settings.notifications.errorAlerts) alert("AI Generation Error: Studio context rejected.");
+    } catch (error: any) {
+      console.error("Outline Generation Detailed Error:", error);
+      if (settings.notifications.errorAlerts) {
+        alert("AI Generation Error: " + (error?.message || "Internal Context Rejection. Please check your API key and connection."));
+      }
     } finally {
       setIsLoading(false);
     }
@@ -259,7 +254,8 @@ const App: React.FC = () => {
         coverStyle: { ...activeProject.coverStyle, aiGeneratedImage: coverUrl }
       });
       setCurrentStep('preview');
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Finalization Error:", error);
       setCurrentStep('preview');
     } finally {
       setIsLoading(false);
@@ -305,9 +301,9 @@ const App: React.FC = () => {
           {(activeView === 'dashboard' || activeView === 'my-books') && (
             <div className="space-y-6">
               {syncing && (
-                <div className="flex items-center gap-2 text-indigo-500 text-xs font-bold animate-pulse px-4">
+                <div className="flex items-center gap-3 bg-indigo-50/50 dark:bg-indigo-900/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold py-3 px-6 rounded-2xl animate-pulse">
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                  Synchronizing with Author Cloud...
+                  Synchronizing Manuscript History...
                 </div>
               )}
               <Dashboard 

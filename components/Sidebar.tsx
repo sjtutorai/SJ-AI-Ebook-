@@ -3,6 +3,16 @@ import React from 'react';
 import { ViewState, AccentColor } from '../types';
 import { signOut, User } from 'firebase/auth';
 import { auth } from '../services/firebase';
+import { 
+  X, 
+  LayoutDashboard, 
+  BookPlus, 
+  Library, 
+  User as UserIcon, 
+  Settings, 
+  LogOut,
+  Plus
+} from 'lucide-react';
 
 interface SidebarProps {
   activeView: ViewState;
@@ -14,86 +24,132 @@ interface SidebarProps {
   accentColor: AccentColor;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeView, onViewChange, isOpen, onNewProject, user, accentColor }) => {
+const Sidebar: React.FC<SidebarProps> = ({ 
+  activeView, 
+  onViewChange, 
+  isOpen, 
+  toggleSidebar, 
+  onNewProject, 
+  user, 
+  accentColor 
+}) => {
   const menuItems: { id: ViewState; label: string; icon: React.ReactNode; requiresAuth?: boolean }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg> },
-    { id: 'create', label: 'Create E-Book', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg> },
-    { id: 'my-books', label: 'My Library', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>, requiresAuth: true },
-    { id: 'profile', label: 'Profile', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>, requiresAuth: true },
-    { id: 'settings', label: 'Settings', icon: <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
+    { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+    { id: 'create', label: 'Create E-Book', icon: <BookPlus className="w-5 h-5" /> },
+    { id: 'my-books', label: 'My Projects', icon: <Library className="w-5 h-5" />, requiresAuth: true },
+    { id: 'profile', label: 'Profile', icon: <UserIcon className="w-5 h-5" />, requiresAuth: true },
+    { id: 'settings', label: 'Settings', icon: <Settings className="w-5 h-5" /> },
   ];
 
   const LOGO_URL = "https://res.cloudinary.com/dazlddxht/image/upload/v1767841061/SJ_AI_Ebook.png";
 
   const accentClasses = {
-    indigo: 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-600/20 text-indigo-400',
-    emerald: 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20 text-emerald-400',
-    rose: 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20 text-rose-400',
-    amber: 'bg-amber-600 hover:bg-amber-500 shadow-amber-600/20 text-amber-400',
-    slate: 'bg-slate-600 hover:bg-slate-500 shadow-slate-600/20 text-slate-400'
+    indigo: 'text-indigo-600 bg-indigo-600',
+    emerald: 'text-emerald-600 bg-emerald-600',
+    rose: 'text-rose-600 bg-rose-600',
+    amber: 'text-amber-600 bg-amber-600',
+    slate: 'text-slate-600 bg-slate-600'
+  };
+
+  const handleNavClick = (view: ViewState) => {
+    onViewChange(view);
+    // On mobile, close sidebar after click
+    if (window.innerWidth < 768) {
+      toggleSidebar();
+    }
   };
 
   return (
-    <aside className={`bg-slate-900 text-slate-300 flex flex-col transition-all duration-500 ease-in-out ${isOpen ? 'w-72' : 'w-20'} h-screen border-r border-slate-800 relative z-50`}>
-      <div className="p-6 mb-4 flex items-center gap-4">
-        <div className="w-10 h-10 bg-white rounded-xl overflow-hidden shrink-0 shadow-xl border border-white/20">
-          <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain p-0.5" />
-        </div>
-        {isOpen && (
-          <div className="animate-in fade-in slide-in-from-left duration-300">
-            <h1 className="text-white font-bold tracking-tight text-lg">SJ AI <span className={accentClasses[accentColor].split(' ')[3]}>Studio</span></h1>
-          </div>
-        )}
-      </div>
+    <>
+      {/* Overlay */}
+      <div
+        className={`fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300 md:hidden ${
+          isOpen ? "opacity-100 visible" : "opacity-0 invisible"
+        }`}
+        onClick={toggleSidebar}
+      />
 
-      <div className="px-3 mb-8">
-        <button 
-          onClick={onNewProject}
-          className={`w-full flex items-center justify-center gap-3 ${accentClasses[accentColor].split(' ').slice(0, 3).join(' ')} text-white font-bold py-3.5 rounded-xl transition-all shadow-lg active:scale-95 overflow-hidden`}
-        >
-          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4"/></svg>
-          {isOpen && <span className="whitespace-nowrap">New E-Book</span>}
-        </button>
-      </div>
-
-      <nav className="flex-1 px-3 space-y-1">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onViewChange(item.id)}
-            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all font-medium group ${
-              activeView === item.id 
-                ? 'bg-slate-800 text-white shadow-inner' 
-                : 'hover:bg-slate-800/50 hover:text-white'
-            } ${item.requiresAuth && !user ? 'opacity-50' : ''}`}
-          >
-            <div className={`shrink-0 transition-transform ${activeView === item.id ? accentClasses[accentColor].split(' ')[3] + ' scale-110' : 'group-hover:scale-110'}`}>
-              {item.icon}
+      {/* Sidebar */}
+      <aside
+        className={`fixed top-0 left-0 z-50 h-full bg-white dark:bg-slate-900 shadow-2xl
+        transform transition-transform duration-300 ease-in-out border-r border-slate-100 dark:border-slate-800
+        ${isOpen ? "translate-x-0 w-72" : "-translate-x-full md:translate-x-0 md:w-20"}`}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-slate-50 dark:border-slate-800 h-20 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-xl overflow-hidden shrink-0 shadow-sm border border-slate-100">
+              <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain p-1" />
             </div>
             {isOpen && (
-              <div className="flex items-center justify-between flex-1 min-w-0">
-                <span className="text-sm whitespace-nowrap animate-in fade-in slide-in-from-left duration-200">{item.label}</span>
-                {item.requiresAuth && !user && (
-                  <svg className="w-3.5 h-3.5 text-slate-600" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
-                )}
-              </div>
+              <h2 className="text-lg font-serif font-bold text-slate-900 dark:text-white truncate animate-in fade-in slide-in-from-left duration-300">
+                SJ AI <span className={accentClasses[accentColor].split(' ')[0]}>Ebook</span>
+              </h2>
             )}
-          </button>
-        ))}
-      </nav>
-
-      {user && (
-        <div className="p-3 border-t border-slate-800 mt-auto">
+          </div>
           <button 
-            onClick={() => signOut(auth)}
-            className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-slate-400 hover:bg-red-950/20 hover:text-red-400 transition-all font-medium overflow-hidden group`}
+            onClick={toggleSidebar}
+            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors md:hidden"
           >
-            <svg className="w-5 h-5 shrink-0 group-hover:rotate-180 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-            {isOpen && <span className="text-sm">Sign Out</span>}
+            <X className="w-5 h-5" />
           </button>
         </div>
-      )}
-    </aside>
+
+        {/* Quick Action */}
+        <div className="p-4">
+          <button 
+            onClick={() => { onNewProject(); if(window.innerWidth < 768) toggleSidebar(); }}
+            className={`w-full flex items-center justify-center gap-3 ${accentClasses[accentColor].split(' ')[1]} text-white font-bold py-3.5 rounded-2xl transition-all shadow-lg active:scale-95 overflow-hidden group`}
+          >
+            <Plus className={`w-5 h-5 shrink-0 transition-transform ${isOpen ? '' : 'group-hover:rotate-90'}`} />
+            {isOpen && <span className="whitespace-nowrap animate-in fade-in duration-300">New E-Book</span>}
+          </button>
+        </div>
+
+        {/* Menu */}
+        <nav className="p-4 space-y-2 flex-1 overflow-y-auto scrollbar-hide">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => handleNavClick(item.id)}
+              className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all font-medium group ${
+                activeView === item.id 
+                  ? 'bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white' 
+                  : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-white'
+              } ${item.requiresAuth && !user ? 'opacity-30 cursor-not-allowed' : ''}`}
+            >
+              <div className={`shrink-0 transition-transform ${activeView === item.id ? accentClasses[accentColor].split(' ')[0] + ' scale-110' : 'group-hover:scale-110'}`}>
+                {item.icon}
+              </div>
+              {isOpen && (
+                <div className="flex items-center justify-between flex-1 min-w-0 animate-in fade-in slide-in-from-left duration-200">
+                  <span className="text-sm font-semibold truncate">{item.label}</span>
+                  {item.requiresAuth && !user && (
+                    <X className="w-3.5 h-3.5 text-slate-300" />
+                  )}
+                </div>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {/* User Footer */}
+        {user && (
+          <div className="p-4 border-t border-slate-50 dark:border-slate-800 mt-auto">
+            <button 
+              onClick={() => signOut(auth)}
+              className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-slate-400 hover:bg-red-50 dark:hover:bg-red-950/20 hover:text-red-500 transition-all font-medium group"
+            >
+              <LogOut className="w-5 h-5 shrink-0 group-hover:translate-x-1 transition-transform" />
+              {isOpen && <span className="text-sm font-semibold animate-in fade-in duration-300">Sign Out</span>}
+            </button>
+          </div>
+        )}
+      </aside>
+      
+      {/* Spacer for desktop to avoid content overlap */}
+      <div className={`hidden md:block shrink-0 transition-all duration-300 ${isOpen ? 'w-72' : 'w-20'}`} />
+    </>
   );
 };
 

@@ -24,7 +24,7 @@ Rules:
  */
 export const generateOutline = async (config: EbookConfig): Promise<Chapter[]> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const prompt = `Create a detailed ebook outline with chapters and subtopics.
+  const prompt = `Create a detailed ebook outline with chapters and subtopics for an eBook.
 
 Ebook Title: ${config.title}
 Genre: ${config.genre}
@@ -33,12 +33,12 @@ Language: ${config.language}
 Tone: ${config.tone}
 Total Chapters: ${config.chapterCount}
 
-Output format:
-- Chapter number
-- Chapter title
-- 4–6 bullet-point subtopics per chapter
+Requirements for the outline:
+- Provide exactlly ${config.chapterCount} chapters.
+- Each chapter must have a title and a summary consisting of 4–6 bullet-point subtopics.
+- Suggest a structural template for each (introduction, standard, case-study, tutorial, summary, key-takeaways).
 
-Do not write full content. Only provide the outline in JSON format following the schema.`;
+Format the output strictly as a JSON array of objects.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -52,12 +52,24 @@ Do not write full content. Only provide the outline in JSON format following the
           items: {
             type: Type.OBJECT,
             properties: {
-              chapterNumber: { type: Type.INTEGER },
-              title: { type: Type.STRING },
-              summary: { type: Type.STRING, description: 'The 4-6 bullet-point subtopics' },
-              type: { type: Type.STRING, description: 'Suggested template type: introduction, standard, case-study, tutorial, summary, key-takeaways' }
+              chapterNumber: { 
+                type: Type.INTEGER,
+                description: "The sequence number of the chapter."
+              },
+              title: { 
+                type: Type.STRING,
+                description: "Clear and engaging chapter title."
+              },
+              summary: { 
+                type: Type.STRING, 
+                description: 'A list of 4-6 bulleted subtopics for this chapter.' 
+              },
+              type: { 
+                type: Type.STRING, 
+                description: 'Template type: introduction, standard, case-study, tutorial, summary, or key-takeaways.' 
+              }
             },
-            required: ['chapterNumber', 'title', 'summary'],
+            required: ['chapterNumber', 'title', 'summary', 'type'],
             propertyOrdering: ['chapterNumber', 'title', 'summary', 'type']
           }
         }
@@ -97,17 +109,17 @@ Chapter Title: ${chapter.title}
 Target Audience: ${config.classLevel}
 Language: ${config.language}
 Tone: ${config.tone}
-Word Count: ${config.wordLimit / config.chapterCount}
+Word Count Target: ${Math.floor(config.wordLimit / config.chapterCount)} words
 
 Instructions:
-- Start with a short introduction
-- Explain concepts clearly with examples
-- Use subheadings
-- End with a short summary
-- Avoid repetition from previous chapters
-- Ensure originality and clarity
+- Start with a short introduction to the chapter.
+- Use the following subtopics as your guide: ${chapter.summary}
+- Explain concepts clearly with real-world examples.
+- Use subheadings (HTML <h3> or <h4>) for structure.
+- End with a short summary or bridge to the next chapter.
+- Ensure the content is original and matches the ${config.tone} tone.
 
-Formatting: Use HTML tags like <h3>, <h4>, <ul>, <li>, and <p>. DO NOT include any meta-text.`;
+Formatting: Output the body text using standard HTML tags (<h3>, <h4>, <ul>, <li>, <p>). Do not include <html>, <body> or title tags.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -117,7 +129,7 @@ Formatting: Use HTML tags like <h3>, <h4>, <ul>, <li>, and <p>. DO NOT include a
         systemInstruction: SYSTEM_INSTRUCTION
       }
     });
-    return response.text || "Content generation failed.";
+    return response.text || "AI failed to synthesize the chapter content.";
   } catch (error) {
     console.error("Chapter content generation error:", error);
     throw error;
@@ -125,27 +137,21 @@ Formatting: Use HTML tags like <h3>, <h4>, <ul>, <li>, and <p>. DO NOT include a
 };
 
 /**
- * 🔹 7️⃣ AI EBOOK COVER TEXT PROMPT (MODIFIED FOR IMAGE GENERATION)
+ * 🔹 7️⃣ AI EBOOK COVER TEXT PROMPT & IMAGE GENERATION
  */
 export const generateCoverImage = async (project: { config: EbookConfig, coverStyle: any }): Promise<string> => {
   const { config, coverStyle } = project;
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-  // First, get a professional description of the cover as per prompt 7
-  const descPrompt = `Create a professional ebook cover concept description.
+  // First, get a professional description of the cover
+  const descPrompt = `Describe a professional ebook cover design concept.
 Title: ${config.title}
-Subtitle: ${config.genre} Guide
-Author Name: ${config.author}
+Subtitle: An Educational Journey
 Genre: ${config.genre}
-Style: ${coverStyle.artStyle || 'Modern Educational'}
-Color Preference: ${coverStyle.dominantColor || 'Professional Blue'}
+Style: ${coverStyle.artStyle || 'Modern'}
+Color Preference: ${coverStyle.dominantColor || 'Professional'}
 
-Describe:
-- Visual theme
-- Typography style
-- Background idea
-
-Only provide the description text.`;
+Describe the visual theme, typography style, and background idea clearly in 2-3 sentences.`;
 
   try {
     const descResponse = await ai.models.generateContent({
@@ -154,14 +160,14 @@ Only provide the description text.`;
       config: { systemInstruction: SYSTEM_INSTRUCTION }
     });
 
-    const visualDescription = descResponse.text || `Educational book cover for ${config.title}`;
+    const visualDescription = descResponse.text || `Professional educational cover for ${config.title}`;
 
     // Now generate the image using that description
-    const imgPrompt = `Professional high-quality eBook cover image. 
-Subject: ${visualDescription}. 
-Style: ${coverStyle.artStyle}. 
+    const imgPrompt = `High-quality eBook cover illustration. 
+Theme: ${visualDescription}. 
+Art Style: ${coverStyle.artStyle}. 
 Color Palette: ${coverStyle.dominantColor}. 
-NO TEXT on image. High definition, symbolic, educational.`;
+NO TEXT on the image. High definition, symbolic, professional, educational.`;
 
     const imgResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
@@ -181,7 +187,7 @@ NO TEXT on image. High definition, symbolic, educational.`;
         }
       }
     }
-    throw new Error("No image generated");
+    throw new Error("Gemini Image API failed to return data.");
   } catch (error) {
     console.error("Cover generation failed:", error);
     throw error;
@@ -195,8 +201,8 @@ export const generateBlurb = async (config: EbookConfig, outline: Chapter[]): Pr
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   const prompt = `Write a professional blurb for an eBook titled "${config.title}". 
 Target Audience: ${config.classLevel}.
-Key Modules: ${outline.map(c => c.title).join(', ')}.
-Tone: Encouraging and educational.`;
+Key Modules Covered: ${outline.map(c => c.title).join(', ')}.
+Tone: Encouraging, educational, and authoritative.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -204,7 +210,7 @@ Tone: Encouraging and educational.`;
       contents: prompt,
       config: { systemInstruction: SYSTEM_INSTRUCTION }
     });
-    return response.text || "Blurb generation failed.";
+    return response.text || "Could not generate blurb.";
   } catch (error) {
     console.error("Blurb generation failed:", error);
     return "";
