@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from './services/firebase';
+import { collection, query, where, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { auth, db } from './services/firebase';
 import { 
   EbookConfig, EbookProject, Step, Chapter, ViewState, 
   ProjectSnapshot, StudioSettings
@@ -59,6 +60,7 @@ const DEFAULT_SETTINGS: StudioSettings = {
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [activeView, setActiveView] = useState<ViewState>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [currentStep, setCurrentStep] = useState<Step>('setup');
@@ -79,23 +81,57 @@ const App: React.FC = () => {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const activeProject = projects.find(p => p.id === activeProjectId) || null;
 
+  // Handle Auth & Cloud Sync
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-      if (currentUser && pendingConfig) {
-        handleStartGeneration(pendingConfig);
-        setPendingConfig(null);
-        setShowAuthOverlay(false);
+      
+      if (currentUser) {
+        setSyncing(true);
+        try {
+          // Fetch from Firestore
+          const q = query(collection(db, "projects"), where("userId", "==", currentUser.uid));
+          const querySnapshot = await getDocs(q);
+          const cloudProjects: EbookProject[] = [];
+          querySnapshot.forEach((doc) => {
+            cloudProjects.push(doc.data() as EbookProject);
+          });
+
+          // Merge Strategy: Prefer cloud, but if local has newer items (not yet synced), merge them
+          setProjects(prevLocal => {
+            const merged = [...cloudProjects];
+            prevLocal.forEach(local => {
+              if (!merged.find(m => m.id === local.id)) {
+                merged.push(local);
+                // Upload local-only project to cloud
+                setDoc(doc(db, "projects", local.id), { ...local, userId: currentUser.uid });
+              }
+            });
+            return merged.sort((a, b) => b.updatedAt - a.updatedAt);
+          });
+        } catch (error) {
+          console.error("Cloud sync error:", error);
+        } finally {
+          setSyncing(false);
+        }
+
+        if (pendingConfig) {
+          handleStartGeneration(pendingConfig);
+          setPendingConfig(null);
+          setShowAuthOverlay(false);
+        }
       }
     });
     return () => unsubscribe();
   }, [pendingConfig]);
 
+  // Persist to LocalStorage
   useEffect(() => {
     localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
   }, [projects]);
 
+  // Appearance Application
   useEffect(() => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     applyAppearance(settings);
@@ -104,42 +140,45 @@ const App: React.FC = () => {
   const applyAppearance = (s: StudioSettings) => {
     const root = document.documentElement;
     const body = document.body;
-
-    // Theme
     if (s.appearance.theme === 'dark' || (s.appearance.theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
       root.classList.add('dark');
     } else {
       root.classList.remove('dark');
     }
-
-    // Font
-    body.style.fontFamily = s.appearance.fontStyle === 'readable' 
-      ? "'Playfair Display', serif" 
-      : "'Inter', sans-serif";
-    
-    // Accent Color
-    const colors = {
-      indigo: '#4f46e5',
-      emerald: '#10b981',
-      rose: '#f43f5e',
-      amber: '#f59e0b',
-      slate: '#475569'
-    };
+    body.style.fontFamily = s.appearance.fontStyle === 'readable' ? "'Playfair Display', serif" : "'Inter', sans-serif";
+    const colors = { indigo: '#4f46e5', emerald: '#10b981', rose: '#f43f5e', amber: '#f59e0b', slate: '#475569' };
     root.style.setProperty('--accent-color', colors[s.appearance.accentColor]);
-
-    // Animations toggle (Simple implementation)
-    if (!s.experience.enableAnimations) {
-      root.style.setProperty('--animation-duration', '0ms');
-    } else {
-      root.style.setProperty('--animation-duration', '300ms');
-    }
   };
 
-  const updateActiveProject = (updates: Partial<EbookProject>) => {
+  const updateActiveProject = async (updates: Partial<EbookProject>) => {
     if (!activeProjectId) return;
-    setProjects(prev => prev.map(p => 
-      p.id === activeProjectId ? { ...p, ...updates, updatedAt: Date.now() } : p
-    ));
+    
+    const updatedProjects = projects.map(p => {
+      if (p.id === activeProjectId) {
+        const updated = { ...p, ...updates, updatedAt: Date.now() };
+        // Sync to cloud if logged in
+        if (user) {
+          setDoc(doc(db, "projects", p.id), { ...updated, userId: user.uid }, { merge: true });
+        }
+        return updated;
+      }
+      return p;
+    });
+    
+    setProjects(updatedProjects);
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    if (confirm("Permanently delete this manuscript?")) {
+      setProjects(prev => prev.filter(p => p.id !== id));
+      if (user) {
+        try {
+          await deleteDoc(doc(db, "projects", id));
+        } catch (error) {
+          console.error("Error deleting from cloud:", error);
+        }
+      }
+    }
   };
 
   const handleCreateNew = () => {
@@ -172,7 +211,14 @@ const App: React.FC = () => {
       updatedAt: Date.now(),
       history: []
     };
-    setProjects(prev => [newProject, ...prev]);
+    
+    const updatedProjects = [newProject, ...projects];
+    setProjects(updatedProjects);
+    
+    if (user) {
+      setDoc(doc(db, "projects", newId), { ...newProject, userId: user.uid });
+    }
+    
     setActiveProjectId(newId);
     setCurrentStep('setup');
     setActiveView('create');
@@ -209,9 +255,6 @@ const App: React.FC = () => {
         blurb,
         coverStyle: { ...activeProject.coverStyle, aiGeneratedImage: coverUrl }
       });
-      if (settings.notifications.genComplete && user) {
-        // Notification could be a toast in a full implementation
-      }
       setCurrentStep('preview');
     } catch (error) {
       setCurrentStep('preview');
@@ -256,14 +299,22 @@ const App: React.FC = () => {
         />
         
         <main className="flex-1 overflow-y-auto p-6 md:p-10 scrollbar-hide dark:bg-slate-900/50">
-          {activeView === 'dashboard' && (
-            <Dashboard 
-              projects={projects} 
-              onSelect={(id) => { setActiveProjectId(id); setActiveView('create'); setCurrentStep('preview'); }} 
-              onNew={handleCreateNew}
-              onDelete={(id) => setProjects(prev => prev.filter(p => p.id !== id))}
-              user={user}
-            />
+          {(activeView === 'dashboard' || activeView === 'my-books') && (
+            <div className="space-y-6">
+              {syncing && (
+                <div className="flex items-center gap-2 text-indigo-500 text-xs font-bold animate-pulse px-4">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                  Synchronizing with Author Cloud...
+                </div>
+              )}
+              <Dashboard 
+                projects={projects} 
+                onSelect={(id) => { setActiveProjectId(id); setActiveView('create'); setCurrentStep('preview'); }} 
+                onNew={handleCreateNew}
+                onDelete={handleDeleteProject}
+                user={user}
+              />
+            </div>
           )}
 
           {activeView === 'create' && activeProject && (
@@ -308,13 +359,6 @@ const App: React.FC = () => {
               settings={settings} 
               onUpdateSettings={(s) => setSettings(s)} 
             />
-          )}
-
-          {activeView === 'my-books' && (
-             <div className="max-w-4xl mx-auto text-center py-20">
-               <h2 className="text-3xl font-bold mb-4">Personal Library</h2>
-               <p className="text-slate-500">All your generated ebooks appear in the dashboard.</p>
-             </div>
           )}
         </main>
       </div>

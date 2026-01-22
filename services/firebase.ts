@@ -1,6 +1,7 @@
 
 import { initializeApp, getApps, FirebaseApp } from "firebase/app";
 import { getAuth, Auth } from "firebase/auth";
+import { getFirestore, Firestore } from "firebase/firestore";
 
 // Specific Firebase configuration for sjaiebook project provided by the user
 const firebaseConfig = {
@@ -21,4 +22,5 @@ if (!getApps().length) {
 }
 
 export const auth: Auth = getAuth(app);
+export const db: Firestore = getFirestore(app);
 export default app;
