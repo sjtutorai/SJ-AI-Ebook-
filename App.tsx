@@ -234,7 +234,15 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error("Outline Generation Detailed Error:", error);
       if (settings.notifications.errorAlerts) {
-        alert("AI Generation Error: " + (error?.message || "Internal Context Rejection. Please check your API key and connection."));
+        let msg = "AI Studio Context Error: ";
+        if (error.message?.includes('403') || error.message?.includes('API key')) {
+          msg = "API Key Invalid or Restricted. Please check your configuration.";
+        } else if (error.message?.includes('400')) {
+          msg = "The AI could not process this specific topic. Please try a different title.";
+        } else {
+          msg += error.message || "Unknown error occurred.";
+        }
+        alert(msg);
       }
     } finally {
       setIsLoading(false);
@@ -256,6 +264,7 @@ const App: React.FC = () => {
       setCurrentStep('preview');
     } catch (error: any) {
       console.error("Finalization Error:", error);
+      // Still proceed to preview even if some AI assets failed
       setCurrentStep('preview');
     } finally {
       setIsLoading(false);

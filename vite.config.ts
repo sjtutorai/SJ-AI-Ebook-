@@ -9,11 +9,14 @@ export default defineConfig(({ mode }) => {
   // Set the third parameter to '' to load all envs regardless of the `VITE_` prefix.
   const env = loadEnv(mode, process.cwd(), '');
   
+  // Use the provided key as a fallback if the environment variable is not set
+  const apiKey = env.API_KEY || process.env.API_KEY || "AIzaSyD5cF8Mald_oHA-WHY9zA6vo-ZIXkuOhpg";
+
   return {
     plugins: [react()],
     define: {
       // This allows the app to access process.env.API_KEY as requested by the Gemini SDK
-      'process.env.API_KEY': JSON.stringify(env.API_KEY || process.env.API_KEY),
+      'process.env.API_KEY': JSON.stringify(apiKey),
     },
     server: {
       port: 3000,
